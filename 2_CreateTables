@@ -1,0 +1,303 @@
+USE RMSystem;
+GO
+
+/* ============================================================
+   TABLE: Providers
+   ============================================================ */
+
+CREATE TABLE dbo.Providers
+(
+    ProviderID INT IDENTITY(1,1) NOT NULL,
+    ProviderName NVARCHAR(100) NOT NULL,
+    Address VARCHAR(200) NULL,
+    Phone VARCHAR(20) NULL,
+    CreatedTS DATETIME2 NOT NULL
+        CONSTRAINT DF_Providers_CreatedTS DEFAULT SYSDATETIME(),
+    ModifiedTS DATETIME2 NOT NULL
+        CONSTRAINT DF_Providers_ModifiedTS DEFAULT SYSDATETIME(),
+
+    CONSTRAINT PK_Providers
+        PRIMARY KEY CLUSTERED (ProviderID),
+
+    CONSTRAINT UQ_Providers_ProviderName
+        UNIQUE (ProviderName)
+);
+GO
+
+
+/* ============================================================
+   TABLE: Status
+   ============================================================ */
+
+CREATE TABLE dbo.Status
+(
+    StatusID INT IDENTITY(1,1) NOT NULL,
+    Category VARCHAR(50) NOT NULL,
+    Description VARCHAR(50) NOT NULL,
+
+    CONSTRAINT PK_Status
+        PRIMARY KEY CLUSTERED (StatusID),
+
+    CONSTRAINT UQ_Status_Category_Description
+        UNIQUE (Category, Description)
+);
+GO
+
+
+/* ============================================================
+   TABLE: Contracts
+   ============================================================ */
+
+CREATE TABLE dbo.Contracts
+(
+    ContractID INT IDENTITY(1,1) NOT NULL,
+    ProviderID INT NOT NULL,
+    StatusID INT NOT NULL,
+    ContractNumber VARCHAR(50) NOT NULL,
+    StartDate DATE NOT NULL,
+    EndDate DATE NOT NULL,
+    CreatedTS DATETIME2 NOT NULL
+        CONSTRAINT DF_Contracts_CreatedTS DEFAULT SYSDATETIME(),
+    ModifiedTS DATETIME2 NOT NULL
+        CONSTRAINT DF_Contracts_ModifiedTS DEFAULT SYSDATETIME(),
+
+    CONSTRAINT PK_Contracts
+        PRIMARY KEY CLUSTERED (ContractID),
+
+    CONSTRAINT UQ_Contracts_ContractNumber
+        UNIQUE (ContractNumber),
+
+    CONSTRAINT FK_Contracts_Providers
+        FOREIGN KEY (ProviderID)
+        REFERENCES dbo.Providers(ProviderID),
+
+    CONSTRAINT FK_Contracts_Status
+        FOREIGN KEY (StatusID)
+        REFERENCES dbo.Status(StatusID),
+
+    CONSTRAINT CK_Contracts_Dates
+        CHECK (EndDate >= StartDate)
+);
+GO
+
+
+/* ============================================================
+   TABLE: Users
+   ============================================================ */
+
+CREATE TABLE dbo.Users
+(
+    UserID INT IDENTITY(1,1) NOT NULL,
+    ProviderID INT NOT NULL,
+    FirstName VARCHAR(50) NOT NULL,
+    LastName VARCHAR(50) NOT NULL,
+    RoleName VARCHAR(50) NOT NULL,
+    Email VARCHAR(255) NOT NULL,
+    Phone VARCHAR(20) NULL,
+    IsActive BIT NOT NULL
+        CONSTRAINT DF_Users_IsActive DEFAULT 1,
+    CreatedTS DATETIME2 NOT NULL
+        CONSTRAINT DF_Users_CreatedTS DEFAULT SYSDATETIME(),
+    ModifiedTS DATETIME2 NOT NULL
+        CONSTRAINT DF_Users_ModifiedTS DEFAULT SYSDATETIME(),
+
+    CONSTRAINT PK_Users
+        PRIMARY KEY CLUSTERED (UserID),
+
+    CONSTRAINT UQ_Users_Email
+        UNIQUE (Email),
+
+    CONSTRAINT FK_Users_Providers
+        FOREIGN KEY (ProviderID)
+        REFERENCES dbo.Providers(ProviderID)
+);
+GO
+
+
+/* ============================================================
+   TABLE: Clients
+   ============================================================ */
+
+CREATE TABLE dbo.Clients
+(
+    ClientID INT IDENTITY(1,1) NOT NULL,
+    ProviderID INT NOT NULL,
+    FirstName VARCHAR(50) NOT NULL,
+    LastName VARCHAR(50) NOT NULL,
+    DOB DATE NULL,
+    Phone VARCHAR(20) NULL,
+    Email VARCHAR(255) NULL,
+    CreatedTS DATETIME2 NOT NULL
+        CONSTRAINT DF_Clients_CreatedTS DEFAULT SYSDATETIME(),
+    ModifiedTS DATETIME2 NOT NULL
+        CONSTRAINT DF_Clients_ModifiedTS DEFAULT SYSDATETIME(),
+
+    CONSTRAINT PK_Clients
+        PRIMARY KEY CLUSTERED (ClientID),
+
+    CONSTRAINT UQ_Clients_Email
+        UNIQUE (Email),
+
+    CONSTRAINT FK_Clients_Providers
+        FOREIGN KEY (ProviderID)
+        REFERENCES dbo.Providers(ProviderID)
+);
+GO
+
+
+/* ============================================================
+   TABLE: Claims
+   ============================================================ */
+
+CREATE TABLE dbo.Claims
+(
+    ClaimID INT IDENTITY(1,1) NOT NULL,
+    ClientID INT NOT NULL,
+    ContractID INT NOT NULL,
+    StatusID INT NOT NULL,
+    CreatedTS DATETIME2 NOT NULL
+        CONSTRAINT DF_Claims_CreatedTS DEFAULT SYSDATETIME(),
+    TotalAmount DECIMAL(10,2) NOT NULL,
+
+    CONSTRAINT PK_Claims
+        PRIMARY KEY CLUSTERED (ClaimID),
+
+    CONSTRAINT FK_Claims_Clients
+        FOREIGN KEY (ClientID)
+        REFERENCES dbo.Clients(ClientID),
+
+    CONSTRAINT FK_Claims_Contracts
+        FOREIGN KEY (ContractID)
+        REFERENCES dbo.Contracts(ContractID),
+
+    CONSTRAINT FK_Claims_Status
+        FOREIGN KEY (StatusID)
+        REFERENCES dbo.Status(StatusID),
+
+    CONSTRAINT CK_Claims_TotalAmount
+        CHECK (TotalAmount >= 0)
+);
+GO
+
+
+/* ============================================================
+   TABLE: Payments
+   ============================================================ */
+
+CREATE TABLE dbo.Payments
+(
+    PaymentID INT IDENTITY(1,1) NOT NULL,
+    ClaimID INT NOT NULL,
+    StatusID INT NOT NULL,
+    PaymentAmount DECIMAL(10,2) NOT NULL,
+    PaymentSent DATE NULL,
+    PaymentComplete DATE NULL,
+
+    CONSTRAINT PK_Payments
+        PRIMARY KEY CLUSTERED (PaymentID),
+
+    CONSTRAINT FK_Payments_Claims
+        FOREIGN KEY (ClaimID)
+        REFERENCES dbo.Claims(ClaimID),
+
+    CONSTRAINT FK_Payments_Status
+        FOREIGN KEY (StatusID)
+        REFERENCES dbo.Status(StatusID),
+
+    CONSTRAINT CK_Payments_Amount
+        CHECK (PaymentAmount >= 0),
+
+    CONSTRAINT CK_Payments_Dates
+        CHECK
+        (
+            PaymentComplete IS NULL
+            OR
+            (
+                PaymentSent IS NOT NULL
+                AND PaymentSent <= PaymentComplete
+            )
+        )
+);
+GO
+
+
+/* ============================================================
+   TABLE: AuditLog
+   ============================================================ */
+
+CREATE TABLE dbo.AuditLog
+(
+    AuditID INT IDENTITY(1,1) NOT NULL,
+    ProviderID INT NOT NULL,
+    StatusID INT NOT NULL,
+    CreatedTS DATETIME2 NOT NULL
+        CONSTRAINT DF_AuditLog_CreatedTS DEFAULT SYSDATETIME(),
+
+    CONSTRAINT PK_AuditLog
+        PRIMARY KEY CLUSTERED (AuditID),
+
+    CONSTRAINT FK_AuditLog_Providers
+        FOREIGN KEY (ProviderID)
+        REFERENCES dbo.Providers(ProviderID),
+
+    CONSTRAINT FK_AuditLog_Status
+        FOREIGN KEY (StatusID)
+        REFERENCES dbo.Status(StatusID)
+);
+GO
+
+
+/* ============================================================
+   INDEXES
+   ============================================================ */
+
+/* Claims */
+
+CREATE INDEX IX_Claims_ClientID
+    ON dbo.Claims(ClientID);
+
+CREATE INDEX IX_Claims_ContractID
+    ON dbo.Claims(ContractID);
+
+CREATE INDEX IX_Claims_StatusID
+    ON dbo.Claims(StatusID);
+
+
+/* Payments */
+
+CREATE INDEX IX_Payments_ClaimID
+    ON dbo.Payments(ClaimID);
+
+CREATE INDEX IX_Payments_StatusID
+    ON dbo.Payments(StatusID);
+
+
+/* Users */
+
+CREATE INDEX IX_Users_ProviderID
+    ON dbo.Users(ProviderID);
+
+
+/* Clients */
+
+CREATE INDEX IX_Clients_ProviderID
+    ON dbo.Clients(ProviderID);
+
+
+/* Contracts */
+
+CREATE INDEX IX_Contracts_ProviderID
+    ON dbo.Contracts(ProviderID);
+
+CREATE INDEX IX_Contracts_StatusID
+    ON dbo.Contracts(StatusID);
+
+
+/* AuditLog */
+
+CREATE INDEX IX_AuditLog_ProviderID
+    ON dbo.AuditLog(ProviderID);
+
+CREATE INDEX IX_AuditLog_StatusID
+    ON dbo.AuditLog(StatusID);
+GO
